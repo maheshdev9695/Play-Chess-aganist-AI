@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Play Chess Against AI</title>
+  <!-- chess.js library for rules, moves, and game ending detection -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background: #1e1e24;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    h1 {
+      margin-bottom: 12px;
+      font-size: 24px;
+    }
+
+    /* Overall Match Scoreboard */
+    .scoreboard {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+      width: min(92vw, 450px);
+      justify-content: space-between;
+    }
+
+    .score-card {
+      flex: 1;
+      background: #2b2b36;
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 8px 4px;
+      text-align: center;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    .score-card span.label {
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+      color: #aaa;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .score-card span.val {
+      font-size: 20px;
+      font-weight: bold;
+      color: #4caf50;
+    }
+
+    .score-card.ai span.val {
+      color: #ff5252;
+    }
+
+    .score-card.draw span.val {
+      color: #ffd54f;
+    }
+
+    /* Controls */
+    .controls {
+      margin-bottom: 12px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    select, button {
+      padding: 7px 12px;
+      border-radius: 6px;
+      border: none;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    select {
+      background: #2b2b36;
+      color: #fff;
+      border: 1px solid #444;
+    }
+
+    button.btn-primary {
+      background: #4caf50;
+      color: white;
+    }
+
+    button.btn-primary:hover {
+      background: #43a047;
+    }
+
+    button.btn-secondary {
+      background: #444;
+      color: #eee;
+    }
+
+    button.btn-secondary:hover {
+      background: #555;
+    }
+
+    /* Winner Banner */
+    #winner-banner {
+      display: none;
+      width: min(92vw, 450px);
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 6px;
+      text-align: center;
+      font-weight: bold;
+      font-size: 15px;
+    }
+
+    .banner-win { background: #2e7d32; color: white; }
+    .banner-loss { background: #c62828; color: white; }
+    .banner-draw { background: #f57f17; color: white; }
+
+    /* Per-Piece Count Trays */
+    .piece-tray {
+      width: min(92vw, 450px);
+      background: #2b2b36;
+      border: 1px solid #3c3c4a;
+      border-radius: 6px;
+      padding: 6px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      margin: 4px 0;
+    }
+
+    .piece-tray .tray-label {
+      font-weight: bold;
+      font-size: 12px;
+      color: #bbb;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .piece-counts-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    .piece-badge {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      background: #1e1e24;
+      padding: 3px 6px;
+      border-radius: 4px;
+      border: 1px solid #444;
+      font-size: 14px;
+    }
+
+    .piece-badge .icon {
+      font-size: 17px;
+      line-height: 1;
+    }
+
+    .piece-badge .count {
+      font-size: 12px;
+      font-weight: bold;
+      color: #ffd54f;
+    }
+
+    .piece-badge.empty {
+      opacity: 0.35;
+    }
+
+    /* Status & Material */
+    .info-bar {
+      width: min(92vw, 450px);
+      display: flex;
+      justify-content: space-between;
+      margin: 8px 0;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    #status { color: #ffd54f; }
+    #material { color: #81c784; }
+
+    /* Board */
+    #board-container {
+      width: min(92vw, 450px);
+      height: min(92vw, 450px);
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+      border: 4px solid #333;
+      border-radius: 6px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+
+    .square {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: clamp(28px, 7vw, 42px);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .light {
+      background-color: #ebecd0;
+      color: #222;
+    }
+
+    .dark {
+      background-color: #779556;
+      color: #222;
+    }
+
+    .square.selected {
+      background-color: #baca44 !important;
+    }
+
+    .square.legal-move {
+      position: relative;
+    }
+
+    .square.legal-move::after {
+      content: "";
+      width: 14px;
+      height: 14px;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 50%;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Chess vs. AI</h1>
+
+  <!-- Match Win/Loss Scoreboard -->
+  <div class="scoreboard">
+    <div class="score-card">
+      <span class="label">You (White)</span>
+      <span class="val" id="score-player">0</span>
+    </div>
+    <div class="score-card draw">
+      <span class="label">Draws</span>
+      <span class="val" id="score-draw">0</span>
+    </div>
+    <div class="score-card ai">
+      <span class="label">AI (Black)</span>
+      <span class="val" id="score-ai">0</span>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <label for="difficulty">Level: </label>
+    <select id="difficulty">
+      <option value="1">Easy</option>
+      <option value="2" selected>Medium</option>
+      <option value="3">Hard</option>
+    </select>
+    <button class="btn-primary" onclick="newGame()">New Game</button>
+    <button class="btn-secondary" onclick="resetScores()">Reset Score</button>
+  </div>
+
+  <!-- Winner Banner -->
+  <div id="winner-banner"></div>
+
+  <!-- Top Tray: AI Piece Count -->
+  <div class="piece-tray">
+    <span class="tray-label">AI Pieces</span>
+    <div class="piece-counts-group">
+      <div class="piece-badge" id="badge-b-p"><span class="icon">♟</span><span class="count" id="count-b-p">8</span></div>
+      <div class="piece-badge" id="badge-b-n"><span class="icon">♞</span><span class="count" id="count-b-n">2</span></div>
+      <div class="piece-badge" id="badge-b-b"><span class="icon">♝</span><span class="count" id="count-b-b">2</span></div>
+      <div class="piece-badge" id="badge-b-r"><span class="icon">♜</span><span class="count" id="count-b-r">2</span></div>
+      <div class="piece-badge" id="badge-b-q"><span class="icon">♛</span><span class="count" id="count-b-q">1</span></div>
+    </div>
+  </div>
+
+  <!-- Board Container -->
+  <div id="board-container"></div>
+
+  <!-- Bottom Tray: Player Piece Count -->
+  <div class="piece-tray">
+    <span class="tray-label">Your Pieces</span>
+    <div class="piece-counts-group">
+      <div class="piece-badge" id="badge-w-p"><span class="icon">♙</span><span class="count" id="count-w-p">8</span></div>
+      <div class="piece-badge" id="badge-w-n"><span class="icon">♘</span><span class="count" id="count-w-n">2</span></div>
+      <div class="piece-badge" id="badge-w-b"><span class="icon">♗</span><span class="count" id="count-w-b">2</span></div>
+      <div class="piece-badge" id="badge-w-r"><span class="icon">♖</span><span class="count" id="count-w-r">2</span></div>
+      <div class="piece-badge" id="badge-w-q"><span class="icon">♕</span><span class="count" id="count-w-q">1</span></div>
+    </div>
+  </div>
+
+  <!-- Status & Material -->
+  <div class="info-bar">
+    <div id="status">White to move</div>
+    <div id="material">Material: Even</div>
+  </div>
+
+  <script>
+    const game = new Chess();
+    const boardElement = document.getElementById("board-container");
+    const statusElement = document.getElementById("status");
+    const materialElement = document.getElementById("material");
+    const bannerElement = document.getElementById("winner-banner");
+    const difficultySelect = document.getElementById("difficulty");
+
+    // Match Score Tracker
+    let scores = { player: 0, draw: 0, ai: 0 };
+    let gameOverHandled = false;
+    let selectedSquare = null;
+
+    // Unicode symbols
+    const pieceSymbols = {
+      'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚',
+      'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔'
+    };
+
+    const pieceValues = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+
+    // AI Positional tables
+    const pawnPST = [
+      [ 0,  0,  0,  0,  0,  0,  0,  0],
+      [50, 50, 50, 50, 50, 50, 50, 50],
+      [10, 10, 20, 30, 30, 20, 10, 10],
+      [ 5,  5, 10, 25, 25, 10,  5,  5],
+      [ 0,  0,  0, 20, 20,  0,  0,  0],
+      [ 5, -5,-10,  0,  0,-10, -5,  5],
+      [ 5, 10, 10,-20,-20, 10, 10,  5],
+      [ 0,  0,  0,  0,  0,  0,  0,  0]
+    ];
+
+    const knightPST = [
+      [-50,-40,-30,-30,-30,-30,-40,-50],
+      [-40,-20,  0,  0,  0,  0,-20,-40],
+      [-30,  0, 10, 15, 15, 10,  0,-30],
+      [-30,  5, 15, 20, 20, 15,  5,-30],
+      [-30,  0, 15, 20, 20, 15,  0,-30],
+      [-30,  5, 10, 15, 15, 10,  5,-30],
+      [-40,-20,  0,  5,  5,  0,-20,-40],
+      [-50,-40,-30,-30,-30,-30,-40,-50]
+    ];
+
+    function createBoard() {
+      boardElement.innerHTML = "";
+      for (let rank = 8; rank >= 1; rank--) {
+        for (let fileIdx = 0; fileIdx < 8; fileIdx++) {
+          const file = String.fromCharCode(97 + fileIdx);
+          const square = file + rank;
+
+          const squareDiv = document.createElement("div");
+          squareDiv.classList.add("square");
+          squareDiv.classList.add((rank + fileIdx) % 2 === 0 ? "dark" : "light");
+          squareDiv.dataset.square = square;
+
+          squareDiv.addEventListener("click", () => onSquareClick(square));
+          boardElement.appendChild(squareDiv);
+        }
+      }
+      render();
+    }
+
+    // Counts every single piece type currently on board
+    function updatePieceCountScoreboard() {
+      const counts = {
+        w: { p: 0, n: 0, b: 0, r: 0, q: 0 },
+        b: { p: 0, n: 0, b: 0, r: 0, q: 0 }
+      };
+
+      const board = game.board();
+      let whiteTotalVal = 0;
+      let blackTotalVal = 0;
+
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const piece = board[r][c];
+          if (piece && piece.type !== 'k') {
+            counts[piece.color][piece.type]++;
+            if (piece.color === 'w') whiteTotalVal += pieceValues[piece.type];
+            else blackTotalVal += pieceValues[piece.type];
+          }
+        }
+      }
+
+      // Update badge counts and dim empty piece categories
+      ['w', 'b'].forEach(color => {
+        ['p', 'n', 'b', 'r', 'q'].forEach(type => {
+          const count = counts[color][type];
+          const badgeEl = document.getElementById(`badge-${color}-${type}`);
+          const countEl = document.getElementById(`count-${color}-${type}`);
+
+          countEl.textContent = count;
+          if (count === 0) {
+            badgeEl.classList.add("empty");
+          } else {
+            badgeEl.classList.remove("empty");
+          }
+        });
+      });
+
+      // Update net material score
+      const diff = whiteTotalVal - blackTotalVal;
+      if (diff > 0) materialElement.textContent = `Material: +${diff} White`;
+      else if (diff < 0) materialElement.textContent = `Material: +${Math.abs(diff)} AI`;
+      else materialElement.textContent = "Material: Even";
+    }
+
+    function render() {
+      const board = game.board();
+      const squares = document.querySelectorAll(".square");
+
+      squares.forEach((sq) => {
+        sq.textContent = "";
+        sq.classList.remove("selected", "legal-move");
+      });
+
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const piece = board[r][c];
+          if (piece) {
+            const sqName = String.fromCharCode(97 + c) + (8 - r);
+            const sqEl = document.querySelector(`[data-square='${sqName}']`);
+            if (sqEl) {
+              const char = piece.color === "w" ? piece.type.toUpperCase() : piece.type;
+              sqEl.textContent = pieceSymbols[char];
+            }
+          }
+        }
+      }
+
+      if (selectedSquare) {
+        const activeSquare = document.querySelector(`[data-square='${selectedSquare}']`);
+        if (activeSquare) activeSquare.classList.add("selected");
+
+        const legalMoves = game.moves({ square: selectedSquare, verbose: true });
+        legalMoves.forEach((move) => {
+          const targetSq = document.querySelector(`[data-square='${move.to}']`);
+          if (targetSq) targetSq.classList.add("legal-move");
+        });
+      }
+
+      updatePieceCountScoreboard();
+      updateStatusAndScore();
+    }
+
+    function onSquareClick(square) {
+      if (game.game_over() || game.turn() === "b") return;
+
+      if (selectedSquare) {
+        const move = game.move({
+          from: selectedSquare,
+          to: square,
+          promotion: "q"
+        });
+
+        if (move) {
+          selectedSquare = null;
+          render();
+          setTimeout(aiMove, 250);
+          return;
+        }
+      }
+
+      const piece = game.get(square);
+      if (piece && piece.color === game.turn()) {
+        selectedSquare = square;
+      } else {
+        selectedSquare = null;
+      }
+      render();
+    }
+
+    function updateStatusAndScore() {
+      if (game.game_over()) {
+        if (!gameOverHandled) handleGameOver();
+        return;
+      }
+
+      const turn = game.turn() === "w" ? "Your turn (White)" : "AI thinking... (Black)";
+      statusElement.textContent = game.in_check() ? `${turn} - Check!` : turn;
+    }
+
+    function handleGameOver() {
+      gameOverHandled = true;
+      bannerElement.style.display = "block";
+
+      if (game.in_checkmate()) {
+        if (game.turn() === "w") {
+          scores.ai++;
+          bannerElement.className = "banner-loss";
+          bannerElement.textContent = "Checkmate! AI (Black) Wins!";
+        } else {
+          scores.player++;
+          bannerElement.className = "banner-win";
+          bannerElement.textContent = "Checkmate! You (White) Win!";
+        }
+      } else {
+        scores.draw++;
+        bannerElement.className = "banner-draw";
+        bannerElement.textContent = "Game Over: Draw!";
+      }
+
+      document.getElementById("score-player").textContent = scores.player;
+      document.getElementById("score-ai").textContent = scores.ai;
+      document.getElementById("score-draw").textContent = scores.draw;
+      statusElement.textContent = "Game Complete";
+    }
+
+    function newGame() {
+      game.reset();
+      selectedSquare = null;
+      gameOverHandled = false;
+      bannerElement.style.display = "none";
+      render();
+    }
+
+    function resetScores() {
+      scores = { player: 0, draw: 0, ai: 0 };
+      document.getElementById("score-player").textContent = "0";
+      document.getElementById("score-ai").textContent = "0";
+      document.getElementById("score-draw").textContent = "0";
+    }
+
+    // --- AI Engine: Minimax + Alpha-Beta ---
+    const evalPieceValues = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
+
+    function evaluateBoard(boardState) {
+      let totalEvaluation = 0;
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const piece = boardState[r][c];
+          if (piece) {
+            let val = evalPieceValues[piece.type];
+            if (piece.type === "p") {
+              val += piece.color === "w" ? pawnPST[r][c] : pawnPST[7 - r][c];
+            } else if (piece.type === "n") {
+              val += piece.color === "w" ? knightPST[r][c] : knightPST[7 - r][c];
+            }
+            totalEvaluation += piece.color === "w" ? val : -val;
+          }
+        }
+      }
+      return totalEvaluation;
+    }
+
+    function minimax(depth, gameInstance, alpha, beta, isMaximizing) {
+      if (depth === 0 || gameInstance.game_over()) {
+        return evaluateBoard(gameInstance.board());
+      }
+
+      const moves = gameInstance.moves();
+
+      if (isMaximizing) {
+        let maxEval = -Infinity;
+        for (const move of moves) {
+          gameInstance.move(move);
+          const evaluation = minimax(depth - 1, gameInstance, alpha, beta, false);
+          gameInstance.undo();
+          maxEval = Math.max(maxEval, evaluation);
+          alpha = Math.max(alpha, evaluation);
+          if (beta <= alpha) break;
+        }
+        return maxEval;
+      } else {
+        let minEval = Infinity;
+        for (const move of moves) {
+          gameInstance.move(move);
+          const evaluation = minimax(depth - 1, gameInstance, alpha, beta, true);
+          gameInstance.undo();
+          minEval = Math.min(minEval, evaluation);
+          beta = Math.min(beta, evaluation);
+          if (beta <= alpha) break;
+        }
+        return minEval;
+      }
+    }
+
+    function aiMove() {
+      if (game.game_over()) return;
+
+      const depth = parseInt(difficultySelect.value);
+      const moves = game.moves();
+      if (moves.length === 0) return;
+
+      let bestMove = null;
+      let bestValue = Infinity;
+
+      moves.sort(() => Math.random() - 0.5);
+
+      for (const move of moves) {
+        game.move(move);
+        const boardValue = minimax(depth - 1, game, -Infinity, Infinity, true);
+        game.undo();
+
+        if (boardValue < bestValue) {
+          bestValue = boardValue;
+          bestMove = move;
+        }
+      }
+
+      game.move(bestMove);
+      render();
+    }
+
+    createBoard();
+  </script>
+</body>
+</html>
